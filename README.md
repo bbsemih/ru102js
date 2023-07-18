@@ -168,11 +168,3 @@ To run the linter:
 ```
 npm run lint
 ```
-
-# Need Help / Join our Community
-
-If you need help with the course or want to chat to your fellow students and the wider Redis community, please [join us on our Discord server](https://discord.gg/V2jj3qW).
-
-# Subscribe to our YouTube Channel / Follow us on Twitch
-
-We'd love for you to [check out our YouTube channel](https://youtube.com/redisinc), and subscribe if you want to see more Redis videos!  We also stream regularly on our [Twitch.tv channel](https://www.twitch.tv/redisinc) - follow us to be notified when we're live or checkout our [streaming schedule](https://developer.redis.com/redis-live/).
