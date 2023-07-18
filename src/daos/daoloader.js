@@ -8,11 +8,11 @@ const config = require('better-config');
  * @returns {Object} - the DAO implemenation for the currently configured database.
  */
 const loadDao = (daoName) => {
-  const currentDatabase = config.get('application.dataStore');
-  return require(`./impl/${currentDatabase}/${daoName}_dao_${currentDatabase}_impl`);
+    const currentDatabase = config.get('application.dataStore');
+    return require(`./impl/${currentDatabase}/${daoName}_dao_${currentDatabase}_impl`);
 };
 /* eslint-enable */
 
 module.exports = {
-  loadDao,
+    loadDao,
 };

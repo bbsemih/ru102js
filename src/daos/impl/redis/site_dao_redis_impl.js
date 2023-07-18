@@ -13,25 +13,25 @@ const keyGenerator = require('./redis_key_generator');
  * @private
  */
 const remap = (siteHash) => {
-  const remappedSiteHash = { ...siteHash };
+    const remappedSiteHash = {...siteHash };
 
-  remappedSiteHash.id = parseInt(siteHash.id, 10);
-  remappedSiteHash.panels = parseInt(siteHash.panels, 10);
-  remappedSiteHash.capacity = parseFloat(siteHash.capacity, 10);
+    remappedSiteHash.id = parseInt(siteHash.id, 10);
+    remappedSiteHash.panels = parseInt(siteHash.panels, 10);
+    remappedSiteHash.capacity = parseFloat(siteHash.capacity, 10);
 
-  // coordinate is optional.
-  if (siteHash.hasOwnProperty('lat') && siteHash.hasOwnProperty('lng')) {
-    remappedSiteHash.coordinate = {
-      lat: parseFloat(siteHash.lat),
-      lng: parseFloat(siteHash.lng),
-    };
+    // coordinate is optional.
+    if (siteHash.hasOwnProperty('lat') && siteHash.hasOwnProperty('lng')) {
+        remappedSiteHash.coordinate = {
+            lat: parseFloat(siteHash.lat),
+            lng: parseFloat(siteHash.lng),
+        };
 
-    // Remove original fields from resulting object.
-    delete remappedSiteHash.lat;
-    delete remappedSiteHash.lng;
-  }
+        // Remove original fields from resulting object.
+        delete remappedSiteHash.lat;
+        delete remappedSiteHash.lng;
+    }
 
-  return remappedSiteHash;
+    return remappedSiteHash;
 };
 
 /**
@@ -44,15 +44,15 @@ const remap = (siteHash) => {
  * @private
  */
 const flatten = (site) => {
-  const flattenedSite = { ...site };
+    const flattenedSite = {...site };
 
-  if (flattenedSite.hasOwnProperty('coordinate')) {
-    flattenedSite.lat = flattenedSite.coordinate.lat;
-    flattenedSite.lng = flattenedSite.coordinate.lng;
-    delete flattenedSite.coordinate;
-  }
+    if (flattenedSite.hasOwnProperty('coordinate')) {
+        flattenedSite.lat = flattenedSite.coordinate.lat;
+        flattenedSite.lng = flattenedSite.coordinate.lng;
+        delete flattenedSite.coordinate;
+    }
 
-  return flattenedSite;
+    return flattenedSite;
 };
 
 /**
@@ -62,15 +62,15 @@ const flatten = (site) => {
  * @returns {Promise} - a Promise, resolving to the string value
  *   for the key of the site Redis.
  */
-const insert = async (site) => {
-  const client = redis.getClient();
+const insert = async(site) => {
+    const client = redis.getClient();
 
-  const siteHashKey = keyGenerator.getSiteHashKey(site.id);
+    const siteHashKey = keyGenerator.getSiteHashKey(site.id);
 
-  await client.hmsetAsync(siteHashKey, flatten(site));
-  await client.saddAsync(keyGenerator.getSiteIDsKey(), siteHashKey);
+    await client.hmsetAsync(siteHashKey, flatten(site));
+    await client.saddAsync(keyGenerator.getSiteIDsKey(), siteHashKey);
 
-  return siteHashKey;
+    return siteHashKey;
 };
 
 /**
@@ -79,13 +79,13 @@ const insert = async (site) => {
  * @param {number} id - a site ID.
  * @returns {Promise} - a Promise, resolving to a site object.
  */
-const findById = async (id) => {
-  const client = redis.getClient();
-  const siteKey = keyGenerator.getSiteHashKey(id);
+const findById = async(id) => {
+    const client = redis.getClient();
+    const siteKey = keyGenerator.getSiteHashKey(id);
 
-  const siteHash = await client.hgetallAsync(siteKey);
+    const siteHash = await client.hgetallAsync(siteKey);
 
-  return (siteHash === null ? siteHash : remap(siteHash));
+    return (siteHash === null ? siteHash : remap(siteHash));
 };
 
 /* eslint-disable arrow-body-style */
@@ -94,10 +94,20 @@ const findById = async (id) => {
  *
  * @returns {Promise} - a Promise, resolving to an array of site objects.
  */
-const findAll = async () => {
-  // START CHALLENGE #1
-  return [];
-  // END CHALLENGE #1
+const findAll = async() => {
+    const client = redis.getClient();
+    //smembers returns all the members of the set value stored at key.
+    const siteIds = await client.smembersAsync(keyGenerator.getSiteIDsKey());
+    const sites = [];
+
+    for (const siteId of siteIds) {
+        const siteHash = await client.hgetallAsync(siteId);
+
+        if (siteHash) {
+            sites.push(remap(siteHash));
+        }
+    }
+    return sites;
 };
 /* eslint-enable */
 
@@ -114,7 +124,7 @@ const findAll = async () => {
  * @param {'KM' | 'MI'} radiusUnit - The unit that the value of radius is in.
  * @returns {Promise} - a Promise, resolving to an array of site objects.
  */
-const findByGeo = async (lat, lng, radius, radiusUnit) => [];
+const findByGeo = async(lat, lng, radius, radiusUnit) => [];
 
 /**
  * Get an array of sites where capacity exceeds consumption within
@@ -128,14 +138,14 @@ const findByGeo = async (lat, lng, radius, radiusUnit) => [];
  * @param {'KM' | 'MI'} radiusUnit - The unit that the value of radius is in.
  * @returns {Promise} - a Promise, resolving to an array of site objects.
  */
-const findByGeoWithExcessCapacity = async (lat, lng, radius, radiusUnit) => [];
+const findByGeoWithExcessCapacity = async(lat, lng, radius, radiusUnit) => [];
 
 module.exports = {
-  insert,
-  findById,
-  findAll,
-  findByGeo,
-  findByGeoWithExcessCapacity,
+    insert,
+    findById,
+    findAll,
+    findByGeo,
+    findByGeoWithExcessCapacity,
 };
 
 /* eslint-enable no-unused-vars */
