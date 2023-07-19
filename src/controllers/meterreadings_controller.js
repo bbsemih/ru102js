@@ -11,15 +11,15 @@ const feedDao = require('../daos/feed_dao');
  * @param {Array} meterReadings - array of meterreading objects.
  * @returns {Promise} - a promise that resolves when the operation is complete.
  */
-const createMeterReadings = async (meterReadings) => {
-  for (const meterReading of meterReadings) {
-    /* eslint-disable no-await-in-loop */
-    await metricDao.insert(meterReading);
-    await siteStatsDao.update(meterReading);
-    await capacityDao.update(meterReading);
-    await feedDao.insert(meterReading);
-    /* eslint-enable */
-  }
+const createMeterReadings = async(meterReadings) => {
+    for (const meterReading of meterReadings) {
+        /* eslint-disable no-await-in-loop */
+        await metricDao.insert(meterReading);
+        await siteStatsDao.update(meterReading);
+        await capacityDao.update(meterReading);
+        await feedDao.insert(meterReading);
+        /* eslint-enable */
+    }
 };
 
 /**
@@ -39,10 +39,10 @@ const getMeterReadings = async limit => feedDao.getRecentGlobal(limit);
  * @param {number} limit - the maximum number of entries to retrieve from the feed.
  * @returns {Promise} - promise that resolves to an array of feed entries.
  */
-const getMeterReadingsForSite = async (siteId, limit) => feedDao.getRecentForSite(siteId, limit);
+const getMeterReadingsForSite = async(siteId, limit) => feedDao.getRecentForSite(siteId, limit);
 
 module.exports = {
-  createMeterReadings,
-  getMeterReadings,
-  getMeterReadingsForSite,
+    createMeterReadings,
+    getMeterReadings,
+    getMeterReadingsForSite,
 };

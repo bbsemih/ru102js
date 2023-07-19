@@ -34,11 +34,11 @@ const formatMeasurementMinute = (measurement, minuteOfDay) => `${roundTo(measure
  * @private
  */
 const extractMeasurementMinute = (measurementMinute) => {
-  const arr = measurementMinute.split(':');
-  return {
-    value: parseFloat(arr[0]),
-    minute: parseInt(arr[1], 10),
-  };
+    const arr = measurementMinute.split(':');
+    return {
+        value: parseFloat(arr[0]),
+        minute: parseInt(arr[1], 10),
+    };
 };
 
 /* eslint-disable no-unused-vars */
@@ -52,14 +52,16 @@ const extractMeasurementMinute = (measurementMinute) => {
  * @returns {Promise} - Promise that resolves when the operation is complete.
  * @private
  */
-const insertMetric = async (siteId, metricValue, metricName, timestamp) => {
-  const client = redis.getClient();
+const insertMetric = async(siteId, metricValue, metricName, timestamp) => {
+    const client = redis.getClient();
 
-  const metricKey = keyGenerator.getDayMetricKey(siteId, metricName, timestamp);
-  const minuteOfDay = timeUtils.getMinuteOfDay(timestamp);
+    const metricKey = keyGenerator.getDayMetricKey(siteId, metricName, timestamp);
+    const minuteOfDay = timeUtils.getMinuteOfDay(timestamp);
 
-  // START Challenge #2
-  // END Challenge #2
+    //add a metric value to the sorted set whose key is stored in the variable metricKey
+    await client.zaddAsync(metricKey, minuteOfDay, formatMeasurementMinute(metricValue, minuteOfDay));
+    //set the expiration of the metric key to metricExpirationSeconds
+    await client.expireAsync(metricKey, metricExpirationSeconds);
 };
 /* eslint-enable */
 
@@ -72,33 +74,33 @@ const insertMetric = async (siteId, metricValue, metricName, timestamp) => {
  * @returns {Promise} - Promise that resolves to an array of metric objects.
  * @private
  */
-const getMeasurementsForDate = async (siteId, metricUnit, timestamp, limit) => {
-  const client = redis.getClient();
+const getMeasurementsForDate = async(siteId, metricUnit, timestamp, limit) => {
+    const client = redis.getClient();
 
-  // e.g. metrics:whGenerated:2020-01-01:1
-  const key = keyGenerator.getDayMetricKey(siteId, metricUnit, timestamp);
+    // e.g. metrics:whGenerated:2020-01-01:1
+    const key = keyGenerator.getDayMetricKey(siteId, metricUnit, timestamp);
 
-  // Array of strings formatted <measurement value>:<minute of day>
-  const metrics = await client.zrevrangeAsync(key, 0, limit - 1);
+    // Array of strings formatted <measurement value>:<minute of day>
+    const metrics = await client.zrevrangeAsync(key, 0, limit - 1);
 
-  const formattedMeasurements = [];
+    const formattedMeasurements = [];
 
-  for (let n = 0; n < metrics.length; n += 1) {
-    const { value, minute } = extractMeasurementMinute(metrics[n]);
+    for (let n = 0; n < metrics.length; n += 1) {
+        const { value, minute } = extractMeasurementMinute(metrics[n]);
 
-    // Create a measurement object
-    const measurement = {
-      siteId,
-      dateTime: timeUtils.getTimestampForMinuteOfDay(timestamp, minute),
-      value,
-      metricUnit,
-    };
+        // Create a measurement object
+        const measurement = {
+            siteId,
+            dateTime: timeUtils.getTimestampForMinuteOfDay(timestamp, minute),
+            value,
+            metricUnit,
+        };
 
-    // Add in reverse order.
-    formattedMeasurements.unshift(measurement);
-  }
+        // Add in reverse order.
+        formattedMeasurements.unshift(measurement);
+    }
 
-  return formattedMeasurements;
+    return formattedMeasurements;
 };
 
 /**
@@ -106,12 +108,12 @@ const getMeasurementsForDate = async (siteId, metricUnit, timestamp, limit) => {
  * @param {Object} meterReading - the meter reading to insert.
  * @returns {Promise} - Promise that resolves when the operation is completed.
  */
-const insert = async (meterReading) => {
-  await Promise.all([
-    insertMetric(meterReading.siteId, meterReading.whGenerated, 'whGenerated', meterReading.dateTime),
-    insertMetric(meterReading.siteId, meterReading.whUsed, 'whUsed', meterReading.dateTime),
-    insertMetric(meterReading.siteId, meterReading.tempC, 'tempC', meterReading.dateTime),
-  ]);
+const insert = async(meterReading) => {
+    await Promise.all([
+        insertMetric(meterReading.siteId, meterReading.whGenerated, 'whGenerated', meterReading.dateTime),
+        insertMetric(meterReading.siteId, meterReading.whUsed, 'whUsed', meterReading.dateTime),
+        insertMetric(meterReading.siteId, meterReading.tempC, 'tempC', meterReading.dateTime),
+    ]);
 };
 
 /* eslint-disable no-unused-vars */
@@ -124,40 +126,40 @@ const insert = async (meterReading) => {
  * @param {number} limit - maximum number of metrics to be returned.
  * @returns {Promise} - Promise resolving to an array of measurement objects.
  */
-const getRecent = async (siteId, metricUnit, timestamp, limit) => {
-  if (limit > (metricsPerDay * maxMetricRetentionDays)) {
-    const err = new Error(`Cannot request more than ${maxMetricRetentionDays} days of minute level data.`);
-    err.name = 'TooManyMetricsError';
+const getRecent = async(siteId, metricUnit, timestamp, limit) => {
+    if (limit > (metricsPerDay * maxMetricRetentionDays)) {
+        const err = new Error(`Cannot request more than ${maxMetricRetentionDays} days of minute level data.`);
+        err.name = 'TooManyMetricsError';
 
-    throw err;
-  }
+        throw err;
+    }
 
-  let currentTimestamp = timestamp;
-  let count = limit;
-  let iterations = 0;
-  const measurements = [];
+    let currentTimestamp = timestamp;
+    let count = limit;
+    let iterations = 0;
+    const measurements = [];
 
-  do {
-    /* eslint-disable no-await-in-loop */
-    const dateMeasurements = await getMeasurementsForDate(
-      siteId,
-      metricUnit,
-      currentTimestamp,
-      count,
-    );
-    /* eslint-enable */
+    do {
+        /* eslint-disable no-await-in-loop */
+        const dateMeasurements = await getMeasurementsForDate(
+            siteId,
+            metricUnit,
+            currentTimestamp,
+            count,
+        );
+        /* eslint-enable */
 
-    measurements.unshift(...dateMeasurements);
-    count -= dateMeasurements.length;
-    iterations += 1;
-    currentTimestamp -= daySeconds;
-  } while (count > 0 && iterations < maxDaysToReturn);
+        measurements.unshift(...dateMeasurements);
+        count -= dateMeasurements.length;
+        iterations += 1;
+        currentTimestamp -= daySeconds;
+    } while (count > 0 && iterations < maxDaysToReturn);
 
-  return measurements;
+    return measurements;
 };
 /* eslint-enable */
 
 module.exports = {
-  insert,
-  getRecent,
+    insert,
+    getRecent,
 };

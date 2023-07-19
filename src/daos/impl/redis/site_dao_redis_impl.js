@@ -104,6 +104,7 @@ const findAll = async() => {
         const siteHash = await client.hgetallAsync(siteId);
 
         if (siteHash) {
+            //remap creates formatted site object
             sites.push(remap(siteHash));
         }
     }
