@@ -19,16 +19,16 @@ const siteMaxFeedLength = 2440;
  * @private
  */
 const objectToArray = (obj) => {
-  const arr = [];
+    const arr = [];
 
-  for (const k in obj) {
-    if (obj.hasOwnProperty(k)) {
-      arr.push(k);
-      arr.push(obj[k]);
+    for (const k in obj) {
+        if (obj.hasOwnProperty(k)) {
+            arr.push(k);
+            arr.push(obj[k]);
+        }
     }
-  }
 
-  return arr;
+    return arr;
 };
 
 /**
@@ -44,19 +44,19 @@ const objectToArray = (obj) => {
  * @private
  */
 const arrayToObject = (arr) => {
-  const obj = {};
+    const obj = {};
 
-  // arr contains an even number of entries, with alternating
-  // field names and values.  An empty set of field name/value
-  // pairs is not permitted in Redis Streams.
-  for (let n = 0; n < arr.length; n += 2) {
-    const k = arr[n];
-    const v = arr[n + 1];
+    // arr contains an even number of entries, with alternating
+    // field names and values.  An empty set of field name/value
+    // pairs is not permitted in Redis Streams.
+    for (let n = 0; n < arr.length; n += 2) {
+        const k = arr[n];
+        const v = arr[n + 1];
 
-    obj[k] = v;
-  }
+        obj[k] = v;
+    }
 
-  return obj;
+    return obj;
 };
 
 /**
@@ -68,15 +68,15 @@ const arrayToObject = (arr) => {
  * @private
  */
 const remap = (streamEntry) => {
-  const remappedStreamEntry = { ...streamEntry };
+    const remappedStreamEntry = {...streamEntry };
 
-  remappedStreamEntry.siteId = parseInt(streamEntry.siteId, 10);
-  remappedStreamEntry.whUsed = parseFloat(streamEntry.whUsed);
-  remappedStreamEntry.whGenerated = parseFloat(streamEntry.whGenerated);
-  remappedStreamEntry.tempC = parseFloat(streamEntry.tempC);
-  remappedStreamEntry.dateTime = parseInt(streamEntry.dateTime, 10);
+    remappedStreamEntry.siteId = parseInt(streamEntry.siteId, 10);
+    remappedStreamEntry.whUsed = parseFloat(streamEntry.whUsed);
+    remappedStreamEntry.whGenerated = parseFloat(streamEntry.whGenerated);
+    remappedStreamEntry.tempC = parseFloat(streamEntry.tempC);
+    remappedStreamEntry.dateTime = parseInt(streamEntry.dateTime, 10);
 
-  return remappedStreamEntry;
+    return remappedStreamEntry;
 };
 
 /**
@@ -88,25 +88,25 @@ const remap = (streamEntry) => {
  * @private
  */
 const unpackStreamEntries = (streamResponse) => {
-  // Stream entries need to be unpacked as the Redis
-  // client returns them as an array of arrays, rather
-  // than an array of objects.
-  let meterReadings = [];
+    // Stream entries need to be unpacked as the Redis
+    // client returns them as an array of arrays, rather
+    // than an array of objects.
+    let meterReadings = [];
 
-  if (streamResponse && Array.isArray(streamResponse)) {
-    meterReadings = streamResponse.map((entry) => {
-      // entry[0] is the stream ID, we don't need that.
-      const fieldValueArray = entry[1];
+    if (streamResponse && Array.isArray(streamResponse)) {
+        meterReadings = streamResponse.map((entry) => {
+            // entry[0] is the stream ID, we don't need that.
+            const fieldValueArray = entry[1];
 
-      // Convert the array of field/value pairs to an object.
-      const obj = arrayToObject(fieldValueArray);
+            // Convert the array of field/value pairs to an object.
+            const obj = arrayToObject(fieldValueArray);
 
-      // Adjust string values to be correct types before returning.
-      return remap(obj);
-    });
-  }
+            // Adjust string values to be correct types before returning.
+            return remap(obj);
+        });
+    }
 
-  return meterReadings;
+    return meterReadings;
 };
 
 /**
@@ -114,20 +114,23 @@ const unpackStreamEntries = (streamResponse) => {
  * @param {*} meterReading
  * @returns {Promise} - Promise, resolves on completion.
  */
-const insert = async (meterReading) => {
-  // Unpack meterReading into array of alternating key
-  // names and values for addition to the stream.
-  /* eslint-disable no-unused-vars */
-  const fields = objectToArray(meterReading);
-  /* eslint-enable */
+const insert = async(meterReading) => {
+    // Unpack meterReading into array of alternating key
+    // names and values for addition to the stream.
+    /* eslint-disable no-unused-vars */
+    const fields = objectToArray(meterReading);
+    /* eslint-enable */
 
-  const client = redis.getClient();
-  const pipeline = client.batch();
+    const client = redis.getClient();
+    const pipeline = client.batch();
 
-  // START Challenge #6
-  // END Challenge #6
+    //Write a meter reading to two streams: one for the global stream, and one for the site-specific stream.
+    //adds a new entry to the global feed
+    pipeline.xadd(keyGenerator.getGlobalFeedKey(), 'MAXLEN', '~', globalMaxFeedLength, '*', ...fields);
+    //adds a new entry to the site-specific feed
+    pipeline.xadd(keyGenerator.getFeedKey(meterReading.siteId), 'MAXLEN', '~', siteMaxFeedLength, '*', ...fields);
 
-  await pipeline.execAsync();
+    await pipeline.execAsync();
 };
 
 /**
@@ -137,11 +140,11 @@ const insert = async (meterReading) => {
  * @returns {Promise} - Promise that resolves to an array of meter reading objects.
  * @private
  */
-const getRecent = async (key, limit) => {
-  const client = redis.getClient();
-  const response = await client.xrevrangeAsync(key, '+', '-', 'COUNT', limit);
+const getRecent = async(key, limit) => {
+    const client = redis.getClient();
+    const response = await client.xrevrangeAsync(key, '+', '-', 'COUNT', limit);
 
-  return unpackStreamEntries(response);
+    return unpackStreamEntries(response);
 };
 
 /**
@@ -150,8 +153,8 @@ const getRecent = async (key, limit) => {
  * @returns {Promise} - Promise that resolves to an array of meter reading objects.
  */
 const getRecentGlobal = async limit => getRecent(
-  keyGenerator.getGlobalFeedKey(),
-  limit,
+    keyGenerator.getGlobalFeedKey(),
+    limit,
 );
 
 /**
@@ -160,13 +163,13 @@ const getRecentGlobal = async limit => getRecent(
  * @param {*} limit - the maximum number of readings to return.
  * @returns {Promise} - Promise that resolves to an array of meter reading objects.
  */
-const getRecentForSite = async (siteId, limit) => getRecent(
-  keyGenerator.getFeedKey(siteId),
-  limit,
+const getRecentForSite = async(siteId, limit) => getRecent(
+    keyGenerator.getFeedKey(siteId),
+    limit,
 );
 
 module.exports = {
-  insert,
-  getRecentGlobal,
-  getRecentForSite,
+    insert,
+    getRecentGlobal,
+    getRecentForSite,
 };

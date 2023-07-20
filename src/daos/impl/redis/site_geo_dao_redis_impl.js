@@ -17,25 +17,25 @@ const capacityThreshold = 0.2;
  * @private
  */
 const remap = (siteHash) => {
-  const remappedSiteHash = { ...siteHash };
+    const remappedSiteHash = {...siteHash };
 
-  remappedSiteHash.id = parseInt(siteHash.id, 10);
-  remappedSiteHash.panels = parseInt(siteHash.panels, 10);
-  remappedSiteHash.capacity = parseFloat(siteHash.capacity, 10);
+    remappedSiteHash.id = parseInt(siteHash.id, 10);
+    remappedSiteHash.panels = parseInt(siteHash.panels, 10);
+    remappedSiteHash.capacity = parseFloat(siteHash.capacity, 10);
 
-  // coordinate is optional.
-  if (siteHash.hasOwnProperty('lat') && siteHash.hasOwnProperty('lng')) {
-    remappedSiteHash.coordinate = {
-      lat: parseFloat(siteHash.lat),
-      lng: parseFloat(siteHash.lng),
-    };
+    // coordinate is optional.
+    if (siteHash.hasOwnProperty('lat') && siteHash.hasOwnProperty('lng')) {
+        remappedSiteHash.coordinate = {
+            lat: parseFloat(siteHash.lat),
+            lng: parseFloat(siteHash.lng),
+        };
 
-    // Remove original fields from resulting object.
-    delete remappedSiteHash.lat;
-    delete remappedSiteHash.lng;
-  }
+        // Remove original fields from resulting object.
+        delete remappedSiteHash.lat;
+        delete remappedSiteHash.lng;
+    }
 
-  return remappedSiteHash;
+    return remappedSiteHash;
 };
 
 /**
@@ -48,15 +48,15 @@ const remap = (siteHash) => {
  * @private
  */
 const flatten = (site) => {
-  const flattenedSite = { ...site };
+    const flattenedSite = {...site };
 
-  if (flattenedSite.hasOwnProperty('coordinate')) {
-    flattenedSite.lat = flattenedSite.coordinate.lat;
-    flattenedSite.lng = flattenedSite.coordinate.lng;
-    delete flattenedSite.coordinate;
-  }
+    if (flattenedSite.hasOwnProperty('coordinate')) {
+        flattenedSite.lat = flattenedSite.coordinate.lat;
+        flattenedSite.lng = flattenedSite.coordinate.lng;
+        delete flattenedSite.coordinate;
+    }
 
-  return flattenedSite;
+    return flattenedSite;
 };
 
 /**
@@ -66,26 +66,26 @@ const flatten = (site) => {
  * @returns {Promise} - a Promise, resolving to the string value
  *   for the key of the site Redis.
  */
-const insert = async (site) => {
-  const client = redis.getClient();
+const insert = async(site) => {
+    const client = redis.getClient();
 
-  const siteHashKey = keyGenerator.getSiteHashKey(site.id);
+    const siteHashKey = keyGenerator.getSiteHashKey(site.id);
 
-  await client.hmsetAsync(siteHashKey, flatten(site));
+    await client.hmsetAsync(siteHashKey, flatten(site));
 
-  // Co-ordinates are required when using this version of the DAO.
-  if (!site.hasOwnProperty('coordinate')) {
-    throw new Error('Coordinate required for site geo insert!');
-  }
+    // Co-ordinates are required when using this version of the DAO.
+    if (!site.hasOwnProperty('coordinate')) {
+        throw new Error('Coordinate required for site geo insert!');
+    }
 
-  await client.geoaddAsync(
-    keyGenerator.getSiteGeoKey(),
-    site.coordinate.lng,
-    site.coordinate.lat,
-    site.id,
-  );
+    await client.geoaddAsync(
+        keyGenerator.getSiteGeoKey(),
+        site.coordinate.lng,
+        site.coordinate.lat,
+        site.id,
+    );
 
-  return siteHashKey;
+    return siteHashKey;
 };
 
 /**
@@ -94,13 +94,13 @@ const insert = async (site) => {
  * @param {number} id - a site ID.
  * @returns {Promise} - a Promise, resolving to a site object.
  */
-const findById = async (id) => {
-  const client = redis.getClient();
-  const siteKey = keyGenerator.getSiteHashKey(id);
+const findById = async(id) => {
+    const client = redis.getClient();
+    const siteKey = keyGenerator.getSiteHashKey(id);
 
-  const siteHash = await client.hgetallAsync(siteKey);
+    const siteHash = await client.hgetallAsync(siteKey);
 
-  return (siteHash === null ? siteHash : remap(siteHash));
+    return (siteHash === null ? siteHash : remap(siteHash));
 };
 
 /**
@@ -108,27 +108,27 @@ const findById = async (id) => {
  *
  * @returns {Promise} - a Promise, resolving to an array of site objects.
  */
-const findAll = async () => {
-  const client = redis.getClient();
+const findAll = async() => {
+    const client = redis.getClient();
 
-  const siteIds = await client.zrangeAsync(keyGenerator.getSiteGeoKey(), 0, -1);
-  const sites = [];
+    const siteIds = await client.zrangeAsync(keyGenerator.getSiteGeoKey(), 0, -1);
+    // Implementing pipeline to send all of the HGTEALL commands in one round trip
+    if (siteIds.length > 0) {
+        const pipeline = client.batch();
 
-  for (const siteId of siteIds) {
-    const siteKey = keyGenerator.getSiteHashKey(siteId);
+        for (const siteId of siteIds) {
+            const siteKey = keyGenerator.getSiteHashKey(siteId);
+            pipeline.hgetall(siteKey); // HGETALL commands in the pipeline
+        }
 
-    /* eslint-disable no-await-in-loop */
-    const siteHash = await client.hgetallAsync(siteKey);
-    /* eslint-enable */
+        const siteHashes = await pipeline.execAsync(); //Execute all commands in the pipeline
 
-    if (siteHash) {
-      // Call remap to remap the flat key/value representation
-      // from the Redis hash into the site domain object format.
-      sites.push(remap(siteHash));
-    }
-  }
-
-  return sites;
+        const sites = [];
+        for (const siteHash of siteHashes) {
+            sites.push(remap(siteHash));
+        }
+    };
+    return sites;
 };
 
 /**
@@ -140,31 +140,31 @@ const findAll = async () => {
  * @param {'KM' | 'MI'} radiusUnit - The unit that the value of radius is in.
  * @returns {Promise} - a Promise, resolving to an array of site objects.
  */
-const findByGeo = async (lat, lng, radius, radiusUnit) => {
-  const client = redis.getClient();
+const findByGeo = async(lat, lng, radius, radiusUnit) => {
+    const client = redis.getClient();
 
-  const siteIds = await client.georadiusAsync(
-    keyGenerator.getSiteGeoKey(),
-    lng,
-    lat,
-    radius,
-    radiusUnit.toLowerCase(),
-  );
+    const siteIds = await client.georadiusAsync(
+        keyGenerator.getSiteGeoKey(),
+        lng,
+        lat,
+        radius,
+        radiusUnit.toLowerCase(),
+    );
 
-  const sites = [];
+    const sites = [];
 
-  for (const siteId of siteIds) {
-    /* eslint-disable no-await-in-loop */
-    const siteKey = keyGenerator.getSiteHashKey(siteId);
-    const siteHash = await client.hgetallAsync(siteKey);
-    /* eslint-enable */
+    for (const siteId of siteIds) {
+        /* eslint-disable no-await-in-loop */
+        const siteKey = keyGenerator.getSiteHashKey(siteId);
+        const siteHash = await client.hgetallAsync(siteKey);
+        /* eslint-enable */
 
-    if (siteHash) {
-      sites.push(remap(siteHash));
+        if (siteHash) {
+            sites.push(remap(siteHash));
+        }
     }
-  }
 
-  return sites;
+    return sites;
 };
 
 /**
@@ -177,84 +177,92 @@ const findByGeo = async (lat, lng, radius, radiusUnit) => {
  * @param {'KM' | 'MI'} radiusUnit - The unit that the value of radius is in.
  * @returns {Promise} - a Promise, resolving to an array of site objects.
  */
-const findByGeoWithExcessCapacity = async (lat, lng, radius, radiusUnit) => {
-  /* eslint-disable no-unreachable */
-  // Challenge #5, remove the next line...
-  return [];
+const findByGeoWithExcessCapacity = async(lat, lng, radius, radiusUnit) => {
+    /* eslint-disable no-unreachable */
+    const client = redis.getClient();
 
-  const client = redis.getClient();
+    // Create a pipeline to send multiple commands in one round trip.
+    const setOperationsPipeline = client.batch();
 
-  // Create a pipeline to send multiple commands in one round trip.
-  const setOperationsPipeline = client.batch();
+    // Get sites within the radius and store them in a temporary sorted set.
+    const sitesInRadiusSortedSetKey = keyGenerator.getTemporaryKey();
 
-  // Get sites within the radius and store them in a temporary sorted set.
-  const sitesInRadiusSortedSetKey = keyGenerator.getTemporaryKey();
+    setOperationsPipeline.georadiusAsync(
+        keyGenerator.getSiteGeoKey(),
+        lng,
+        lat,
+        radius,
+        radiusUnit.toLowerCase(),
+        'STORE',
+        sitesInRadiusSortedSetKey,
+    );
 
-  setOperationsPipeline.georadiusAsync(
-    keyGenerator.getSiteGeoKey(),
-    lng,
-    lat,
-    radius,
-    radiusUnit.toLowerCase(),
-    'STORE',
-    sitesInRadiusSortedSetKey,
-  );
+    // Create a key for a temporary sorted set containing sites that fell
+    // within the radius and their current capacities.
+    const sitesInRadiusCapacitySortedSetKey = keyGenerator.getTemporaryKey();
 
-  // Create a key for a temporary sorted set containing sites that fell
-  // within the radius and their current capacities.
-  const sitesInRadiusCapacitySortedSetKey = keyGenerator.getTemporaryKey();
+    // Temporary sorted set using the ZINTERSTORE which contains intersection of the
+    // capacity sorted set and the sites in radius sorted set.
+    setOperationsPipeline.zinterstore(
+        sitesInRadiusCapacitySortedSetKey,
+        // 2 stands for the number of keys that we are going to intersect
+        2,
+        sitesInRadiusSortedSetKey,
+        keyGenerator.getSiteCapacitySortedSetKey(),
+        // WEIGHTS 0 1 means that we are going to multiply the score of the first
+        // sorted set by 0 and the score of the second sorted set by 1.
+        'WEIGHTS',
+        0,
+        1,
+    );
 
-  // START Challenge #5
-  // END Challenge #5
+    // Expire the temporary sorted sets after 30 seconds, so that we
+    // don't leave old keys on the server that we no longer need.
+    setOperationsPipeline.expire(sitesInRadiusSortedSetKey, 30);
+    setOperationsPipeline.expire(sitesInRadiusCapacitySortedSetKey, 30);
 
-  // Expire the temporary sorted sets after 30 seconds, so that we
-  // don't leave old keys on the server that we no longer need.
-  setOperationsPipeline.expire(sitesInRadiusSortedSetKey, 30);
-  setOperationsPipeline.expire(sitesInRadiusCapacitySortedSetKey, 30);
+    // Execute the set operations commands, we do not need to
+    // use the responses.
+    await setOperationsPipeline.execAsync();
 
-  // Execute the set operations commands, we do not need to
-  // use the responses.
-  await setOperationsPipeline.execAsync();
+    // Get sites IDs with enough capacity from the temporary
+    // sorted set and store them in siteIds.
+    const siteIds = await client.zrangebyscoreAsync(
+        sitesInRadiusCapacitySortedSetKey,
+        capacityThreshold,
+        '+inf',
+    );
 
-  // Get sites IDs with enough capacity from the temporary
-  // sorted set and store them in siteIds.
-  const siteIds = await client.zrangebyscoreAsync(
-    sitesInRadiusCapacitySortedSetKey,
-    capacityThreshold,
-    '+inf',
-  );
+    // Populate array w ith site details, use pipeline for efficiency.
+    const siteHashPipeline = client.batch();
 
-  // Populate array with site details, use pipeline for efficiency.
-  const siteHashPipeline = client.batch();
-
-  for (const siteId of siteIds) {
-    const siteKey = keyGenerator.getSiteHashKey(siteId);
-    siteHashPipeline.hgetall(siteKey);
-  }
-
-  const siteHashes = await siteHashPipeline.execAsync();
-
-  const sitesWithCapacity = [];
-
-  for (const siteHash of siteHashes) {
-    // Ensure a result was found before processing it.
-    if (siteHash) {
-      // Call remap to remap the flat key/value representation
-      // from the Redis hash into the site domain object format,
-      // and convert any fields that a numerical from the Redis
-      // string representations.
-      sitesWithCapacity.push(remap(siteHash));
+    for (const siteId of siteIds) {
+        const siteKey = keyGenerator.getSiteHashKey(siteId);
+        siteHashPipeline.hgetall(siteKey);
     }
-  }
 
-  return sitesWithCapacity;
-  /* eslint-enable */
+    const siteHashes = await siteHashPipeline.execAsync();
+
+    const sitesWithCapacity = [];
+
+    for (const siteHash of siteHashes) {
+        // Ensure a result was found before processing it.
+        if (siteHash) {
+            // Call remap to remap the flat key/value representation
+            // from the Redis hash into the site domain object format,
+            // and convert any fields that a numerical from the Redis
+            // string representations.
+            sitesWithCapacity.push(remap(siteHash));
+        }
+    };
+    return sitesWithCapacity;
+    /* eslint-enable */
 };
 
 module.exports = {
-  insert,
-  findById,
-  findAll,
-  findByGeo,
-  findByGeoWithExcessCapacity,
+    insert,
+    findById,
+    findAll,
+    findByGeo,
+    findByGeoWithExcessCapacity,
 };
